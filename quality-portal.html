@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>质量管理门户平台</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .collapse-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out;
+        }
+        
+        .collapse-content.expanded {
+            max-height: 500px;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -256px;
+                transition: left 0.3s ease-in-out;
+                z-index: 50;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .sidebar-overlay {
+                position: fixed;
+                inset: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 系统分类数据 - 修改后的四个分类
+        const systemCategories = [
+            {
+                id: 'manufacturing_quality',
+                name: '制造质量',
+                icon: 'fas fa-industry',
+                systems: [
+                    { id: 'quality_operation_overview', name: 'MPS系统', icon: 'fas fa-chart-line', description: '制造质量运行综合监控' },
+                    { id: 'manufacturing_cost_management', name: 'MES系统', icon: 'fas fa-coins', description: '制造过程成本控制' },
+                    { id: 'process_quality_control', name: 'MQS系统（四基地）', icon: 'fas fa-cogs', description: '生产过程质量管控' },
+                    { id: 'product_design_quality', name: 'QDAS系统', icon: 'fas fa-pencil-ruler', description: '产品设计质量管理' },
+                    { id: 'PPSR系统', name: 'PPSR系统', icon: 'fas fa-code', description: '产品设计质量管理' },
+                    { id: '制造协同平台', name: '制造协同平台', icon: 'fas fa-box-open', description: '产品设计质量管理' },
+                    { id: 'quality_alert_integration', name: 'VMQIS系统', icon: 'fas fa-exclamation-triangle', description: '质量预警信息集成' }
+                ]
+            },
+            {
+                id: 'design_quality',
+                name: '设计质量',
+                icon: 'fas fa-drafting-compass',
+                systems: [
+                    { id: 'product_design_quality', name: '产品设计质量', icon: 'fas fa-pencil-ruler', description: '产品设计质量管理' },
+                    { id: 'development_quality', name: '开发质量', icon: 'fas fa-code', description: '产品开发过程质量' },
+                    { id: 'design_review', name: '设计评审', icon: 'fas fa-clipboard-check', description: '设计评审管理' },
+                    { id: 'quality_standard_management', name: '质量标准管理', icon: 'fas fa-book', description: '质量标准体系管理' }
+                ]
+            },
+            {
+                id: 'procurement_quality',
+                name: '采购质量',
+                icon: 'fas fa-shopping-cart',
+                systems: [
+                    { id: 'supplier_quality', name: '产业链协同管理平台（SCM）', icon: 'fas fa-handshake', description: '供应商质量管理' },
+                    { id: 'incoming_inspection', name: '供应商质量协同管理平台', icon: 'fas fa-box-open', description: '来料检验管理' },
+                    { id: 'supplier_evaluation', name: '供应商评价', icon: 'fas fa-star', description: '供应商绩效评价' },
+                    { id: 'procurement_traceability', name: 'Excel服务器', icon: 'fas fa-search', description: '采购质量追溯' }
+                ]
+            },
+            {
+                id: 'after_sales_quality',
+                name: '售后质量',
+                icon: 'fas fa-headset',
+                systems: [
+                    { id: 'after_sales_service', name: '技术咨询平台（TAC）', icon: 'fas fa-tools', description: '售后服务质量管理' },
+                    { id: 'customer_satisfaction', name: '菱菱助手', icon: 'fas fa-smile', description: '客户满意度管理' },
+                    { id: 'warranty_management', name: '索赔系统（RWNS）', icon: 'fas fa-shield-alt', description: '产品保修管理' },
+                    { id: 'warranty_management', name: '售后质量管理系统（CDP）', icon: 'fas fa-search', description: '产品保修管理' },
+                    { id: 'complaint_management', name: '客服系统', icon: 'fas fa-exclamation-circle', description: '客户投诉处理' }
+                ]
+            }
+        ];
+		
+		// 欢迎条组件 - 调整配色以符合页面风格
+		const WelcomeBar = () => {
+			const today = new Date().toLocaleDateString('zh-CN', { 
+				year: 'numeric', 
+				month: 'long', 
+				day: 'numeric', 
+				weekday: 'long' 
+			});
+
+			return (
+				<div className="bg-white border-l-4 border-blue-500 rounded-lg shadow-sm p-4 mb-6 fade-in">
+					<div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+						<div className="flex items-center space-x-3">
+							<div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
+								<i className="fas fa-user text-blue-600 text-xl"></i>
+							</div>
+							<div>
+								<h3 className="text-gray-800 font-semibold text-lg">早上好，李承远</h3>
+								<p className="text-gray-500 text-sm">{today}</p>
+							</div>
+						</div>
+						<div className="flex space-x-8">
+							<div className="text-center">
+								<p className="text-3xl font-bold text-blue-600">3</p>
+								<p className="text-gray-500 text-xs">待办任务</p>
+							</div>
+							<div className="text-center">
+								<p className="text-3xl font-bold text-red-500">2</p>
+								<p className="text-gray-500 text-xs">超期任务</p>
+							</div>
+							<div className="text-center">
+								<p className="text-3xl font-bold text-yellow-500">1</p>
+								<p className="text-gray-500 text-xs">预警任务</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			);
+		};
+
+
+
+		// 主页面组件 - SGMW-质量运行总览
+		const MainPortal = () => {
+			const [imagePathInput, setImagePathInput] = useState('./quality_over.png');
+			const [isFullscreen, setIsFullscreen] = useState(false);
+
+			// ESC键退出全屏
+			useEffect(() => {
+				const handleEscape = (e) => {
+					if (e.key === 'Escape') {
+						setIsFullscreen(false);
+					}
+				};
+				if (isFullscreen) {
+					document.addEventListener('keydown', handleEscape);
+				}
+				return () => document.removeEventListener('keydown', handleEscape);
+			}, [isFullscreen]);
+
+			// 任务数据
+			const taskData = {
+				'待办任务': [
+					{ system: '质量标准管理', action: '供应商A来料检验异常待评审', time: '10分钟前', deadline: '截止 今日 18:00' },
+					{ system: '检验与试验管理', action: '3项不合格品处置单待审批', time: '今日 09:12', deadline: '截止 明日 12:00' },
+					{ system: '供应商质量管理', action: 'Q2内部审核计划待确认', time: '昨日 17:40', deadline: '截止 本周五 17:00' },
+					{ system: '制造协同平台', action: '生产计划调整待确认', time: '今日 08:30', deadline: '截止 今日 17:00' },
+					{ system: 'VMQIS系统', action: '质量预警信息待审核', time: '今日 09:45', deadline: '截止 明日 10:00' }
+				],
+				'超期任务': [
+					{ system: '过程质量控制', action: '生产过程异常处置超期', time: '超期3天', deadline: '原定截止 上周一 12:00' },
+					{ system: '质量数据分析', action: '月度质量报告提交超期', time: '超期2天', deadline: '原定截止 上周三 17:00' },
+					{ system: '制造成本管理', action: '成本异常分析待处理', time: '超期1天', deadline: '原定截止 上周五 18:00' },
+					{ system: 'QDAS系统', action: '质量数据分析超期', time: '超期2天', deadline: '原定截止 上周二 12:00' }
+				],
+				'预警任务': [
+					{ system: 'MQS系统（四基地）', action: '河西基地质量指标预警', time: '1小时前', deadline: '预计截止 明日 12:00' },
+					{ system: 'VMQIS系统', action: '质量预警信息待确认', time: '2小时前', deadline: '预计截止 本周四 17:00' },
+					{ system: 'PPSR系统', action: '过程质量数据异常预警', time: '3小时前', deadline: '预计截止 本周五 12:00' },
+					{ system: 'MES系统', action: '产线异常预警待处理', time: '30分钟前', deadline: '预计截止 明日 16:00' }
+				]
+			};
+
+			// 常用应用数据
+			const commonApps = [
+				{ name: 'MPS系统', icon: 'fas fa-chart-line', category: '制造质量' },
+				{ name: 'MES系统', icon: 'fas fa-coins', category: '制造质量' },
+				{ name: 'MQS系统', icon: 'fas fa-cogs', category: '制造质量' },
+				{ name: 'QDAS系统', icon: 'fas fa-pencil-ruler', category: '制造质量' },
+				{ name: 'PPSR系统', icon: 'fas fa-code', category: '制造质量' },
+				{ name: '制造协同平台', icon: 'fas fa-box-open', category: '制造质量' },
+				{ name: 'VMQIS系统', icon: 'fas fa-exclamation-triangle', category: '制造质量' },
+				{ name: 'SCM平台', icon: 'fas fa-handshake', category: '采购质量' },
+				{ name: 'TAC平台', icon: 'fas fa-tools', category: '售后质量' },
+				{ name: '菱菱助手', icon: 'fas fa-smile', category: '售后质量' },
+				{ name: 'RWNS系统', icon: 'fas fa-shield-alt', category: '售后质量' },
+				{ name: 'CDP系统', icon: 'fas fa-search', category: '售后质量' }
+			];
+
+			return (
+				<div className="fade-in space-y-4">
+					{/* 全屏遮罩层 */}
+					{isFullscreen && (
+						<div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
+							{/* 退出全屏按钮 */}
+							<button 
+								className="absolute top-4 right-4 z-10 bg-white bg-opacity-20 text-white p-3 rounded-lg hover:bg-opacity-30 transition-all duration-200"
+								onClick={() => setIsFullscreen(false)}
+								title="退出全屏 (ESC)"
+							>
+								<i className="fas fa-times text-xl"></i>
+							</button>
+							
+							{/* 全屏图片 */}
+							<img
+								src={imagePathInput}
+								alt="主页面图片"
+								className="max-w-full max-h-full object-contain"
+							/>
+						</div>
+					)}
+
+					{/* 上方区域 - 三栏布局：超期任务 | 图片 | 预警任务 */}
+					<div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+						{/* 左侧面板 - 超期任务 */}
+						<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-sm font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-exclamation-circle text-red-500 mr-2"></i>
+									超期任务
+								</h3>
+								<span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">
+									{taskData['超期任务'].length}
+								</span>
+							</div>
+							
+							{/* 超期任务列表 */}
+							<div className="space-y-3 flex-1 overflow-y-auto">
+								{taskData['超期任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-red-500 bg-red-50 hover:bg-red-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="mb-2">
+											<p className="text-sm font-medium text-gray-800 leading-snug">{task.action}</p>
+										</div>
+										<div className="flex items-center text-xs text-gray-600 mb-1">
+											<i className="fas fa-desktop mr-1"></i>
+											<span className="truncate">{task.system}</span>
+										</div>
+										<div className="flex items-center justify-between">
+											<span className="text-xs text-gray-500 flex items-center">
+												<i className="fas fa-clock mr-1"></i>
+												{task.time}
+											</span>
+										</div>
+										<div className="mt-2 pt-2 border-t border-red-200">
+											<p className="text-xs font-medium text-red-600">{task.deadline}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* 中间 - 图片展示区域 */}
+						<div className="lg:col-span-2 bg-white rounded-xl shadow-sm relative overflow-hidden">
+							{/* 全屏按钮 */}
+							<button 
+								className="absolute top-3 right-3 z-10 bg-black bg-opacity-40 hover:bg-opacity-60 text-white p-2 rounded-lg transition-all duration-200"
+								onClick={() => setIsFullscreen(true)}
+								title="全屏显示"
+							>
+								<i className="fas fa-expand"></i>
+							</button>
+
+							{/* 页面标题标签 */}
+							<div className="absolute top-3 left-3 z-10 bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium shadow-lg">
+								质量运行总览
+							</div>
+
+							{/* 图片显示区域 */}
+							<div className="p-2 h-[55vh]">
+								<img
+									src={imagePathInput}
+									alt="主页面图片"
+									className="w-full h-full object-contain rounded-lg"
+								/>
+							</div>
+
+						</div>
+
+						{/* 右侧面板 - 预警任务 */}
+						<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-sm font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+									预警任务
+								</h3>
+								<span className="px-2 py-0.5 bg-yellow-100 text-yellow-600 rounded-full text-xs font-medium">
+									{taskData['预警任务'].length}
+								</span>
+							</div>
+							
+							{/* 预警任务列表 */}
+							<div className="space-y-3 flex-1 overflow-y-auto">
+								{taskData['预警任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-yellow-500 bg-yellow-50 hover:bg-yellow-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="mb-2">
+											<p className="text-sm font-medium text-gray-800 leading-snug">{task.action}</p>
+										</div>
+										<div className="flex items-center text-xs text-gray-600 mb-1">
+											<i className="fas fa-desktop mr-1"></i>
+											<span className="truncate">{task.system}</span>
+										</div>
+										<div className="flex items-center justify-between">
+											<span className="text-xs text-gray-500 flex items-center">
+												<i className="fas fa-clock mr-1"></i>
+												{task.time}
+											</span>
+										</div>
+										<div className="mt-2 pt-2 border-t border-yellow-200">
+											<p className="text-xs font-medium text-yellow-600">{task.deadline}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+
+					{/* 下方区域 - 待办任务和常用应用导航 */}
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+						{/* 左侧窗口 - 待办任务 */}
+						<div className="bg-white rounded-xl shadow-sm p-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-list-ul text-blue-600 mr-2"></i>
+									待办任务
+								</h3>
+								<span className="px-2 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">
+									{taskData['待办任务'].length} 项
+								</span>
+							</div>
+							<div className="space-y-3 max-h-[300px] overflow-y-auto">
+								{taskData['待办任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-blue-500 bg-blue-50 hover:bg-blue-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="flex items-start justify-between">
+											<div className="flex-1">
+												<p className="text-sm font-medium text-gray-800 mb-1">{task.action}</p>
+												<p className="text-xs text-gray-600 flex items-center">
+													<i className="fas fa-desktop mr-1"></i>
+													{task.system}
+												</p>
+												<p className="text-xs text-gray-500 mt-1 flex items-center">
+													<i className="fas fa-clock mr-1"></i>
+													{task.time}
+												</p>
+											</div>
+											<div className="text-right">
+												<p className="text-xs font-medium text-blue-600">{task.deadline}</p>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* 右侧窗口 - 常用应用导航 */}
+						<div className="bg-white rounded-xl shadow-sm p-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-th-large text-blue-600 mr-2"></i>
+									常用应用导航
+								</h3>
+								<span className="text-xs text-gray-500">
+									{commonApps.length} 个应用
+								</span>
+							</div>
+							<div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto">
+								{commonApps.map((app, index) => (
+									<div 
+										key={index} 
+										className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer transition-all duration-200 group"
+									>
+										<div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors duration-200">
+											<i className={`${app.icon} text-lg text-blue-600`}></i>
+										</div>
+										<span className="text-xs font-medium text-gray-800 text-center leading-tight">{app.name}</span>
+										<span className="text-xs text-gray-500 text-center mt-1">{app.category}</span>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				</div>
+			);
+		};
+
+
+
+
+
+		// 通用分类页面组件
+		const CategoryPage = ({ categoryName, defaultImagePath }) => {
+			const [imagePathInput, setImagePathInput] = useState(defaultImagePath);
+			const [isFullscreen, setIsFullscreen] = useState(false);
+
+			// ESC键退出全屏
+			useEffect(() => {
+				const handleEscape = (e) => {
+					if (e.key === 'Escape') {
+						setIsFullscreen(false);
+					}
+				};
+				if (isFullscreen) {
+					document.addEventListener('keydown', handleEscape);
+				}
+				return () => document.removeEventListener('keydown', handleEscape);
+			}, [isFullscreen]);
+
+			// 各分类任务数据
+			const getTaskData = (category) => {
+				const taskDataByCategory = {
+					'制造质量': {
+						'待办任务': [
+							{ system: 'MES系统', action: '生产线质量异常待处理', time: '15分钟前', deadline: '截止 今日 16:00' },
+							{ system: 'MQS系统', action: '四基地质量数据待审核', time: '30分钟前', deadline: '截止 今日 18:00' },
+							{ system: 'VMQIS系统', action: '质量预警待处理', time: '1小时前', deadline: '截止 明日 12:00' }
+						],
+						'超期任务': [
+							{ system: 'MPS系统', action: '制造质量报表超期未提交', time: '超期2天', deadline: '原定截止 上周五 17:00' },
+							{ system: 'QDAS系统', action: '质量数据分析超期', time: '超期1天', deadline: '原定截止 上周一 12:00' },
+							{ system: 'PPSR系统', action: '过程质量问题超期未闭环', time: '超期3天', deadline: '原定截止 上周三 18:00' }
+						],
+						'预警任务': [
+							{ system: '制造协同平台', action: '生产过程质量预警', time: '20分钟前', deadline: '预计截止 明日 16:00' },
+							{ system: 'MES系统', action: '产线异常预警', time: '45分钟前', deadline: '预计截止 本周四 12:00' },
+							{ system: 'MQS系统', action: '四基地质量指标预警', time: '1小时前', deadline: '预计截止 本周五 17:00' }
+						]
+					},
+					'设计质量': {
+						'待办任务': [
+							{ system: '产品设计质量', action: '新产品设计评审待确认', time: '20分钟前', deadline: '截止 今日 17:00' },
+							{ system: '开发质量', action: '代码质量审查待完成', time: '1小时前', deadline: '截止 明日 12:00' },
+							{ system: '设计评审', action: '设计变更评审待处理', time: '2小时前', deadline: '截止 明日 16:00' }
+						],
+						'超期任务': [
+							{ system: '质量标准管理', action: '标准更新确认超期', time: '超期2天', deadline: '原定截止 上周二 17:00' },
+							{ system: '开发质量', action: '开发文档提交超期', time: '超期1天', deadline: '原定截止 上周四 12:00' }
+						],
+						'预警任务': [
+							{ system: '产品设计质量', action: '设计指标预警', time: '30分钟前', deadline: '预计截止 本周四 17:00' },
+							{ system: '开发质量', action: '开发进度预警', time: '1小时前', deadline: '预计截止 本周五 12:00' }
+						]
+					},
+					'采购质量': {
+						'待办任务': [
+							{ system: 'SCM平台', action: '供应商质量协议待审核', time: '25分钟前', deadline: '截止 今日 18:00' },
+							{ system: '供应商质量协同管理平台', action: '来料检验异常待处理', time: '1小时前', deadline: '截止 明日 10:00' },
+							{ system: '供应商评价', action: 'Q3供应商绩效评价待提交', time: '2小时前', deadline: '截止 本周四 17:00' }
+						],
+						'超期任务': [
+							{ system: 'Excel服务器', action: '采购质量数据整理超期', time: '超期3天', deadline: '原定截止 上周一 12:00' },
+							{ system: 'SCM平台', action: '供应商整改跟踪超期', time: '超期1天', deadline: '原定截止 上周三 18:00' }
+						],
+						'预警任务': [
+							{ system: '供应商质量协同管理平台', action: '来料合格率预警', time: '40分钟前', deadline: '预计截止 本周五 12:00' },
+							{ system: '供应商评价', action: '供应商风险预警', time: '1小时前', deadline: '预计截止 下周一 17:00' }
+						]
+					},
+					'售后质量': {
+						'待办任务': [
+							{ system: '技术咨询平台（TAC）', action: '客户技术问题待回复', time: '10分钟前', deadline: '截止 今日 17:00' },
+							{ system: '索赔系统（RWNS）', action: '索赔申请待审批', time: '45分钟前', deadline: '截止 明日 14:00' },
+							{ system: '客服系统', action: '客户投诉待处理', time: '1小时前', deadline: '截止 明日 18:00' }
+						],
+						'超期任务': [
+							{ system: '售后质量管理系统（CDP）', action: '质量分析报告超期', time: '超期2天', deadline: '原定截止 上周二 17:00' },
+							{ system: '菱菱助手', action: '客户反馈处理超期', time: '超期1天', deadline: '原定截止 上周四 12:00' }
+						],
+						'预警任务': [
+							{ system: '索赔系统（RWNS）', action: '索赔率异常预警', time: '30分钟前', deadline: '预计截止 本周四 17:00' },
+							{ system: '客服系统', action: '投诉量异常预警', time: '1小时前', deadline: '预计截止 本周五 12:00' }
+						]
+					}
+				};
+				return taskDataByCategory[category] || taskDataByCategory['制造质量'];
+			};
+
+			// 各分类常用应用数据
+			const getCommonApps = (category) => {
+				const appsByCategory = {
+					'制造质量': [
+						{ name: 'MPS系统', icon: 'fas fa-chart-line', category: '制造质量' },
+						{ name: 'MES系统', icon: 'fas fa-coins', category: '制造质量' },
+						{ name: 'MQS系统', icon: 'fas fa-cogs', category: '制造质量' },
+						{ name: 'QDAS系统', icon: 'fas fa-pencil-ruler', category: '制造质量' },
+						{ name: '制造协同平台', icon: 'fas fa-box-open', category: '制造质量' },
+						{ name: 'VMQIS系统', icon: 'fas fa-exclamation-triangle', category: '制造质量' }
+					],
+					'设计质量': [
+						{ name: '产品设计质量', icon: 'fas fa-pencil-ruler', category: '设计质量' },
+						{ name: '开发质量', icon: 'fas fa-code', category: '设计质量' },
+						{ name: '设计评审', icon: 'fas fa-clipboard-check', category: '设计质量' },
+						{ name: '质量标准管理', icon: 'fas fa-book', category: '设计质量' }
+					],
+					'采购质量': [
+						{ name: 'SCM平台', icon: 'fas fa-handshake', category: '采购质量' },
+						{ name: '供应商协同平台', icon: 'fas fa-box-open', category: '采购质量' },
+						{ name: '供应商评价', icon: 'fas fa-star', category: '采购质量' },
+						{ name: 'Excel服务器', icon: 'fas fa-search', category: '采购质量' }
+					],
+					'售后质量': [
+						{ name: 'TAC平台', icon: 'fas fa-tools', category: '售后质量' },
+						{ name: '菱菱助手', icon: 'fas fa-smile', category: '售后质量' },
+						{ name: 'RWNS系统', icon: 'fas fa-shield-alt', category: '售后质量' },
+						{ name: 'CDP系统', icon: 'fas fa-search', category: '售后质量' },
+						{ name: '客服系统', icon: 'fas fa-exclamation-circle', category: '售后质量' }
+					]
+				};
+				return appsByCategory[category] || appsByCategory['制造质量'];
+			};
+
+			const taskData = getTaskData(categoryName);
+			const commonApps = getCommonApps(categoryName);
+
+			return (
+				<div className="fade-in space-y-4">
+					{/* 全屏遮罩层 */}
+					{isFullscreen && (
+						<div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
+							{/* 退出全屏按钮 */}
+							<button 
+								className="absolute top-4 right-4 z-10 bg-white bg-opacity-20 text-white p-3 rounded-lg hover:bg-opacity-30 transition-all duration-200"
+								onClick={() => setIsFullscreen(false)}
+								title="退出全屏 (ESC)"
+							>
+								<i className="fas fa-times text-xl"></i>
+							</button>
+							
+							{/* 全屏图片 */}
+							<img
+								src={imagePathInput}
+								alt={`${categoryName}图片`}
+								className="max-w-full max-h-full object-contain"
+							/>
+						</div>
+					)}
+
+					{/* 上方区域 - 三栏布局：超期任务 | 图片 | 预警任务 */}
+					<div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+						{/* 左侧面板 - 超期任务 */}
+						<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-sm font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-exclamation-circle text-red-500 mr-2"></i>
+									超期任务
+								</h3>
+								<span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">
+									{taskData['超期任务'].length}
+								</span>
+							</div>
+							
+							{/* 超期任务列表 */}
+							<div className="space-y-3 flex-1 overflow-y-auto">
+								{taskData['超期任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-red-500 bg-red-50 hover:bg-red-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="mb-2">
+											<p className="text-sm font-medium text-gray-800 leading-snug">{task.action}</p>
+										</div>
+										<div className="flex items-center text-xs text-gray-600 mb-1">
+											<i className="fas fa-desktop mr-1"></i>
+											<span className="truncate">{task.system}</span>
+										</div>
+										<div className="flex items-center justify-between">
+											<span className="text-xs text-gray-500 flex items-center">
+												<i className="fas fa-clock mr-1"></i>
+												{task.time}
+											</span>
+										</div>
+										<div className="mt-2 pt-2 border-t border-red-200">
+											<p className="text-xs font-medium text-red-600">{task.deadline}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* 中间 - 图片展示区域 */}
+						<div className="lg:col-span-2 bg-white rounded-xl shadow-sm relative overflow-hidden">
+							{/* 全屏按钮 */}
+							<button 
+								className="absolute top-3 right-3 z-10 bg-black bg-opacity-40 hover:bg-opacity-60 text-white p-2 rounded-lg transition-all duration-200"
+								onClick={() => setIsFullscreen(true)}
+								title="全屏显示"
+							>
+								<i className="fas fa-expand"></i>
+							</button>
+
+							{/* 分类名称标签 */}
+							<div className="absolute top-3 left-3 z-10 bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium shadow-lg">
+								{categoryName}
+							</div>
+
+							{/* 图片显示区域 */}
+							<div className="p-2 h-[55vh]">
+								<img
+									src={imagePathInput}
+									alt={`${categoryName}图片`}
+									className="w-full h-full object-contain rounded-lg"
+								/>
+							</div>
+
+
+						</div>
+
+						{/* 右侧面板 - 预警任务 */}
+						<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-sm font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+									预警任务
+								</h3>
+								<span className="px-2 py-0.5 bg-yellow-100 text-yellow-600 rounded-full text-xs font-medium">
+									{taskData['预警任务'].length}
+								</span>
+							</div>
+							
+							{/* 预警任务列表 */}
+							<div className="space-y-3 flex-1 overflow-y-auto">
+								{taskData['预警任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-yellow-500 bg-yellow-50 hover:bg-yellow-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="mb-2">
+											<p className="text-sm font-medium text-gray-800 leading-snug">{task.action}</p>
+										</div>
+										<div className="flex items-center text-xs text-gray-600 mb-1">
+											<i className="fas fa-desktop mr-1"></i>
+											<span className="truncate">{task.system}</span>
+										</div>
+										<div className="flex items-center justify-between">
+											<span className="text-xs text-gray-500 flex items-center">
+												<i className="fas fa-clock mr-1"></i>
+												{task.time}
+											</span>
+										</div>
+										<div className="mt-2 pt-2 border-t border-yellow-200">
+											<p className="text-xs font-medium text-yellow-600">{task.deadline}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+
+					{/* 下方区域 - 待办任务和常用应用导航 */}
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+						{/* 左侧窗口 - 待办任务 */}
+						<div className="bg-white rounded-xl shadow-sm p-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-list-ul text-blue-600 mr-2"></i>
+									待办任务
+								</h3>
+								<span className="px-2 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">
+									{taskData['待办任务'].length} 项
+								</span>
+							</div>
+							<div className="space-y-3 max-h-[300px] overflow-y-auto">
+								{taskData['待办任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-blue-500 bg-blue-50 hover:bg-blue-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="flex items-start justify-between">
+											<div className="flex-1">
+												<p className="text-sm font-medium text-gray-800 mb-1">{task.action}</p>
+												<p className="text-xs text-gray-600 flex items-center">
+													<i className="fas fa-desktop mr-1"></i>
+													{task.system}
+												</p>
+												<p className="text-xs text-gray-500 mt-1 flex items-center">
+													<i className="fas fa-clock mr-1"></i>
+													{task.time}
+												</p>
+											</div>
+											<div className="text-right">
+												<p className="text-xs font-medium text-blue-600">{task.deadline}</p>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* 右侧窗口 - 常用应用导航 */}
+						<div className="bg-white rounded-xl shadow-sm p-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-th-large text-blue-600 mr-2"></i>
+									常用应用导航
+								</h3>
+								<span className="text-xs text-gray-500">
+									{commonApps.length} 个应用
+								</span>
+							</div>
+							<div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto">
+								{commonApps.map((app, index) => (
+									<div 
+										key={index} 
+										className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer transition-all duration-200 group"
+									>
+										<div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors duration-200">
+											<i className={`${app.icon} text-lg text-blue-600`}></i>
+										</div>
+										<span className="text-xs font-medium text-gray-800 text-center leading-tight">{app.name}</span>
+										<span className="text-xs text-gray-500 text-center mt-1">{app.category}</span>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				</div>
+			);
+		};
+
+
+
+        // 子系统页面组件
+        const SystemPage = ({ systemName }) => {
+            return (
+                <div className="fade-in h-full flex flex-col">
+                    {/* 上方2/3空间 - 子系统页面内容 */}
+                    <div className="flex-[2] bg-white rounded-xl shadow-sm p-6 mb-4 overflow-y-auto">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-2">{systemName}</h2>
+                                <p className="text-sm text-gray-600">系统功能页面正在开发中，敬请期待...</p>
+                            </div>
+                            <div className="mt-4 md:mt-0 text-right">
+                                <p className="text-sm text-gray-600">当前时间: {new Date().toLocaleString('zh-CN')}</p>
+                                <div className="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs mt-2">
+                                    <i className="fas fa-clock mr-1"></i>
+                                    开发中
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                                <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i className="fas fa-cog text-4xl text-blue-400 animate-spin"></i>
+                                </div>
+                                <h3 className="text-xl font-semibold text-gray-800 mb-2">功能开发中</h3>
+                                <p className="text-gray-500">该功能模块正在开发中，敬请期待...</p>
+                                <div className="mt-4">
+                                    <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm">
+                                        <i className="fas fa-calendar-alt mr-2"></i>
+                                        预计上线时间：2026年Q4
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 下方1/3空间 - 相关指标 */}
+                    <div className="flex-1 bg-gray-50 rounded-xl shadow-sm p-4">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">相关指标</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                                { label: '质量指标', value: '95.2%', icon: 'fas fa-chart-line', color: 'text-blue-600' },
+                                { label: '成本指标', value: '98.6%', icon: 'fas fa-coins', color: 'text-green-600' },
+                                { label: '效率指标', value: '92.4%', icon: 'fas fa-tachometer-alt', color: 'text-yellow-600' },
+                                { label: '客户指标', value: '97.1%', icon: 'fas fa-heart', color: 'text-red-600' }
+                            ].map((metric, index) => (
+                                <div key={index} className="bg-white rounded-lg p-3 text-center">
+                                    <i className={`${metric.icon} ${metric.color} text-lg mb-1`}></i>
+                                    <p className="text-xs text-gray-600 mb-1">{metric.label}</p>
+                                    <p className="text-lg font-bold text-gray-800">{metric.value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+		// 设计质量页面组件 - 包含三张图片轮播功能
+		const DesignQualityPage = () => {
+			const [currentImageIndex, setCurrentImageIndex] = useState(0);
+			const [autoSwitch, setAutoSwitch] = useState(true);
+			const [isFullscreen, setIsFullscreen] = useState(false);
+			
+			// 三张图片的存储路径输入接口
+			const [imagePaths, setImagePaths] = useState([
+				'./research-quality.jpeg',  // 第一张图片路径
+				'./iptv-department.jpeg',  // 第二张图片路径  
+				'./iptv-vehicle.jpeg'   // 第三张图片路径
+			]);
+
+			// 自动切换图片（每1秒切换一次）
+			useEffect(() => {
+				if (autoSwitch) {
+					const interval = setInterval(() => {
+						setCurrentImageIndex(prev => (prev + 1) % 3);
+					}, 1000);
+					return () => clearInterval(interval);
+				}
+			}, [autoSwitch]);
+
+			// ESC键退出全屏
+			useEffect(() => {
+				const handleEscape = (e) => {
+					if (e.key === 'Escape') {
+						setIsFullscreen(false);
+					}
+				};
+				if (isFullscreen) {
+					document.addEventListener('keydown', handleEscape);
+				}
+				return () => document.removeEventListener('keydown', handleEscape);
+			}, [isFullscreen]);
+
+			// 点击按钮切换图片
+			const handleButtonClick = (index) => {
+				setCurrentImageIndex(index);
+				setAutoSwitch(false); // 点击按钮后停止自动切换
+			};
+
+			// 更新图片路径
+			const handleImagePathChange = (index, value) => {
+				setImagePaths(prev => {
+					const newPaths = [...prev];
+					newPaths[index] = value;
+					return newPaths;
+				});
+			};
+
+			// 任务数据（设计质量专属）
+			const taskData = {
+				'待办任务': [
+					{ system: '产品设计质量', action: '新产品设计评审待确认', time: '20分钟前', deadline: '截止 今日 17:00' },
+					{ system: '开发质量', action: '代码质量审查待完成', time: '1小时前', deadline: '截止 明日 12:00' },
+					{ system: '设计评审', action: '设计变更评审待处理', time: '2小时前', deadline: '截止 明日 16:00' }
+				],
+				'超期任务': [
+					{ system: '质量标准管理', action: '标准更新确认超期', time: '超期2天', deadline: '原定截止 上周二 17:00' },
+					{ system: '开发质量', action: '开发文档提交超期', time: '超期1天', deadline: '原定截止 上周四 12:00' }
+				],
+				'预警任务': [
+					{ system: '产品设计质量', action: '设计指标预警', time: '30分钟前', deadline: '预计截止 本周四 17:00' },
+					{ system: '开发质量', action: '开发进度预警', time: '1小时前', deadline: '预计截止 本周五 12:00' }
+				]
+			};
+
+			// 常用应用数据（设计质量专属）
+			const commonApps = [
+				{ name: '产品设计质量', icon: 'fas fa-pencil-ruler', category: '设计质量' },
+				{ name: '开发质量', icon: 'fas fa-code', category: '设计质量' },
+				{ name: '设计评审', icon: 'fas fa-clipboard-check', category: '设计质量' },
+				{ name: '质量标准管理', icon: 'fas fa-book', category: '设计质量' }
+			];
+
+			return (
+				<div className="fade-in space-y-4">
+					{/* 全屏遮罩层 */}
+					{isFullscreen && (
+						<div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
+							<button 
+								className="absolute top-4 right-4 z-10 bg-white bg-opacity-20 text-white p-3 rounded-lg hover:bg-opacity-30 transition-all duration-200"
+								onClick={() => setIsFullscreen(false)}
+								title="退出全屏 (ESC)"
+							>
+								<i className="fas fa-times text-xl"></i>
+							</button>
+							
+							<img
+								src={imagePaths[currentImageIndex]}
+								alt={`设计质量图片${currentImageIndex + 1}`}
+								className="max-w-full max-h-full object-contain"
+							/>
+						</div>
+					)}
+
+					{/* 上方区域 - 三栏布局：超期任务 | 图片轮播 | 预警任务 */}
+					<div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+						{/* 左侧面板 - 超期任务 */}
+						<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-sm font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-exclamation-circle text-red-500 mr-2"></i>
+									超期任务
+								</h3>
+								<span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-medium">
+									{taskData['超期任务'].length}
+								</span>
+							</div>
+							
+							<div className="space-y-3 flex-1 overflow-y-auto">
+								{taskData['超期任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-red-500 bg-red-50 hover:bg-red-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="mb-2">
+											<p className="text-sm font-medium text-gray-800 leading-snug">{task.action}</p>
+										</div>
+										<div className="flex items-center text-xs text-gray-600 mb-1">
+											<i className="fas fa-desktop mr-1"></i>
+											<span className="truncate">{task.system}</span>
+										</div>
+										<div className="flex items-center justify-between">
+											<span className="text-xs text-gray-500 flex items-center">
+												<i className="fas fa-clock mr-1"></i>
+												{task.time}
+											</span>
+										</div>
+										<div className="mt-2 pt-2 border-t border-red-200">
+											<p className="text-xs font-medium text-red-600">{task.deadline}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* 中间 - 图片轮播区域 */}
+						<div className="lg:col-span-2 bg-white rounded-xl shadow-sm relative overflow-hidden">
+							{/* 全屏按钮 */}
+							<button 
+								className="absolute top-3 right-3 z-10 bg-black bg-opacity-40 hover:bg-opacity-60 text-white p-2 rounded-lg transition-all duration-200"
+								onClick={() => setIsFullscreen(true)}
+								title="全屏显示"
+							>
+								<i className="fas fa-expand"></i>
+							</button>
+
+							{/* 分类标题 */}
+							<div className="absolute top-3 left-3 z-10 bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium shadow-lg">
+								设计质量
+							</div>
+
+							{/* 自动切换指示器 */}
+							{autoSwitch && (
+								<div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-10 bg-green-500 text-white px-2 py-1 rounded-lg text-xs flex items-center">
+									<i className="fas fa-sync-alt animate-spin mr-1"></i>
+									自动轮播中
+								</div>
+							)}
+
+							{/* 图片显示区域 */}
+							<div className="p-2 h-[55vh]">
+								<img
+									src={imagePaths[currentImageIndex]}
+									alt={`设计质量图片${currentImageIndex + 1}`}
+									className="w-full h-full object-contain rounded-lg"
+								/>
+							</div>
+
+							{/* 切换按钮 */}
+							<div className="flex justify-center space-x-3 py-3 border-t bg-gray-50">
+								{['研发质量改进状态', 'IPTV&CPV科室', 'IPTV&CPV车型'].map((label, index) => (
+									<button 
+										key={index}
+										className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+											currentImageIndex === index 
+												? 'bg-blue-600 text-white shadow-lg' 
+												: 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+										}`}
+										onClick={() => handleButtonClick(index)}
+									>
+										{label}
+									</button>
+								))}
+							</div>
+
+
+							
+						</div>
+
+						{/* 右侧面板 - 预警任务 */}
+						<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-sm font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+									预警任务
+								</h3>
+								<span className="px-2 py-0.5 bg-yellow-100 text-yellow-600 rounded-full text-xs font-medium">
+									{taskData['预警任务'].length}
+								</span>
+							</div>
+							
+							<div className="space-y-3 flex-1 overflow-y-auto">
+								{taskData['预警任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-yellow-500 bg-yellow-50 hover:bg-yellow-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="mb-2">
+											<p className="text-sm font-medium text-gray-800 leading-snug">{task.action}</p>
+										</div>
+										<div className="flex items-center text-xs text-gray-600 mb-1">
+											<i className="fas fa-desktop mr-1"></i>
+											<span className="truncate">{task.system}</span>
+										</div>
+										<div className="flex items-center justify-between">
+											<span className="text-xs text-gray-500 flex items-center">
+												<i className="fas fa-clock mr-1"></i>
+												{task.time}
+											</span>
+										</div>
+										<div className="mt-2 pt-2 border-t border-yellow-200">
+											<p className="text-xs font-medium text-yellow-600">{task.deadline}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+
+					{/* 下方区域 - 待办任务和常用应用导航 */}
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+						{/* 左侧窗口 - 待办任务 */}
+						<div className="bg-white rounded-xl shadow-sm p-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-list-ul text-blue-600 mr-2"></i>
+									待办任务
+								</h3>
+								<span className="px-2 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-medium">
+									{taskData['待办任务'].length} 项
+								</span>
+							</div>
+							<div className="space-y-3 max-h-[300px] overflow-y-auto">
+								{taskData['待办任务'].map((task, index) => (
+									<div 
+										key={index} 
+										className="p-3 rounded-lg border-l-4 border-blue-500 bg-blue-50 hover:bg-blue-100 hover:shadow-md transition-all duration-200"
+									>
+										<div className="flex items-start justify-between">
+											<div className="flex-1">
+												<p className="text-sm font-medium text-gray-800 mb-1">{task.action}</p>
+												<p className="text-xs text-gray-600 flex items-center">
+													<i className="fas fa-desktop mr-1"></i>
+													{task.system}
+												</p>
+												<p className="text-xs text-gray-500 mt-1 flex items-center">
+													<i className="fas fa-clock mr-1"></i>
+													{task.time}
+												</p>
+											</div>
+											<div className="text-right">
+												<p className="text-xs font-medium text-blue-600">{task.deadline}</p>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+
+						{/* 右侧窗口 - 常用应用导航 */}
+						<div className="bg-white rounded-xl shadow-sm p-4">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base font-semibold text-gray-800 flex items-center">
+									<i className="fas fa-th-large text-blue-600 mr-2"></i>
+									常用应用导航
+								</h3>
+								<span className="text-xs text-gray-500">
+									{commonApps.length} 个应用
+								</span>
+							</div>
+							<div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto">
+								{commonApps.map((app, index) => (
+									<div 
+										key={index} 
+										className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer transition-all duration-200 group"
+									>
+										<div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors duration-200">
+											<i className={`${app.icon} text-lg text-blue-600`}></i>
+										</div>
+										<span className="text-xs font-medium text-gray-800 text-center leading-tight">{app.name}</span>
+										<span className="text-xs text-gray-500 text-center mt-1">{app.category}</span>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				</div>
+			);
+		};
+
+
+        // 主应用组件
+		const App = () => {
+			const [selectedSystem, setSelectedSystem] = useState('质量运行总览');
+			const [expandedCategories, setExpandedCategories] = useState(['manufacturing_quality']);
+			const [sidebarOpen, setSidebarOpen] = useState(false);
+
+			const handleSystemClick = (systemName) => {
+				setSelectedSystem(systemName);
+				setSidebarOpen(false);
+			};
+
+			const handleCategoryClick = (categoryId) => {
+				setExpandedCategories(prev => 
+					prev.includes(categoryId) 
+						? prev.filter(cat => cat !== categoryId)
+						: [...prev, categoryId]
+				);
+				
+				// 根据分类ID切换到对应页面
+				const categoryPageMap = {
+					'manufacturing_quality': '制造质量',
+					'design_quality': '设计质量',
+					'procurement_quality': '采购质量',
+					'after_sales_quality': '售后质量'
+				};
+				
+				if (categoryPageMap[categoryId]) {
+					setSelectedSystem(categoryPageMap[categoryId]);
+					setSidebarOpen(false);
+				}
+			};
+
+			const renderMainContent = () => {
+				switch (selectedSystem) {
+					case '质量运行总览':
+						return <MainPortal />;
+					case '制造质量':
+						return <CategoryPage categoryName="制造质量" defaultImagePath="./manufacture.png" />;
+					case '设计质量':
+						// return <CategoryPage categoryName="设计质量" defaultImagePath="./design.png" />;
+						return <DesignQualityPage />; 
+					case '采购质量':
+						return <CategoryPage categoryName="采购质量" defaultImagePath="./procurement.png" />;
+					case '售后质量':
+						return <CategoryPage categoryName="售后质量" defaultImagePath="./after_sales.png" />;
+					default:
+						return <SystemPage systemName={selectedSystem} />;
+				}
+			};
+
+			return (
+				<div className="flex h-screen bg-gray-100">
+					{/* 移动端遮罩层 */}
+					{sidebarOpen && (
+						<div 
+							className="sidebar-overlay lg:hidden"
+							onClick={() => setSidebarOpen(false)}
+						/>
+					)}
+
+					{/* 左侧边栏 */}
+					<aside className={`sidebar bg-white shadow-lg lg:relative lg:left-0 transition-all duration-300 ${
+						sidebarOpen ? 'open' : ''
+					} lg:block w-64 flex-shrink-0`}>
+						<div className="flex flex-col h-full">
+							{/* Logo区域 */}
+							<div className="flex items-center justify-between p-6 border-b border-gray-200">
+								<div className="flex items-center space-x-3">
+									<div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+										<i className="fas fa-shield-alt text-white text-lg"></i>
+									</div>
+									<div>
+										<h1 className="text-lg font-bold text-gray-800">质量管理门户平台</h1>
+										<p className="text-xs text-gray-500">SGMW Quality Portal</p>
+									</div>
+								</div>
+								<button 
+									className="lg:hidden text-gray-500 hover:text-gray-700"
+									onClick={() => setSidebarOpen(false)}
+								>
+									<i className="fas fa-times text-lg"></i>
+								</button>
+							</div>
+
+							{/* 系统分类导航 */}
+							<nav className="flex-1 overflow-y-auto p-4">
+								{/* 质量运行总览入口 */}
+								<div 
+									className={`flex items-center space-x-3 p-3 rounded-lg mb-4 cursor-pointer transition-colors duration-200 ${
+										selectedSystem === '质量运行总览' 
+											? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600' 
+											: 'text-gray-700 hover:bg-gray-50'
+									}`}
+									onClick={() => handleSystemClick('质量运行总览')}
+								>
+									<i className="fas fa-home text-lg"></i>
+									<span className="font-medium">质量运行总览</span>
+								</div>
+
+								{/* 系统分类 */}
+								{systemCategories.map((category) => (
+									<div key={category.id} className="mb-3">
+										{/* 分类标题 */}
+										<div 
+											className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors duration-200"
+											onClick={() => handleCategoryClick(category.id)}
+										>
+											<div className="flex items-center space-x-3">
+												<i className={`${category.icon} text-gray-600`}></i>
+												<span className="font-medium text-gray-800">{category.name}</span>
+											</div>
+											<i className={`fas fa-chevron-${expandedCategories.includes(category.id) ? 'up' : 'down'} text-gray-400 text-sm transition-transform duration-200`}></i>
+										</div>
+
+										{/* 子系统列表 */}
+										<div className={`collapse-content ${expandedCategories.includes(category.id) ? 'expanded' : ''}`}>
+											<div className="mt-2 space-y-1 ml-4">
+												{category.systems.map((system) => (
+													<div 
+														key={system.id}
+														className={`flex items-center space-x-3 p-2.5 rounded-lg cursor-pointer transition-colors duration-200 ${
+															selectedSystem === system.name 
+																? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600' 
+																: 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+														}`}
+														onClick={() => handleSystemClick(system.name)}
+													>
+														<i className={`${system.icon} text-sm`}></i>
+														<span className="text-sm">{system.name}</span>
+													</div>
+												))}
+											</div>
+										</div>
+									</div>
+								))}
+							</nav>
+
+							{/* 底部信息 */}
+							<div className="p-4 border-t border-gray-200">
+								<div className="flex items-center space-x-3">
+									<div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+										<i className="fas fa-user text-gray-600 text-sm"></i>
+									</div>
+									<div>
+										<p className="text-sm font-medium text-gray-800">李承远</p>
+										<p className="text-xs text-gray-500">质量体系管理员</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</aside>
+
+					{/* 主要内容区域 */}
+					<div className="flex-1 flex flex-col overflow-hidden">
+						{/* 顶部导航栏 */}
+						<header className="bg-white shadow-sm border-b border-gray-200">
+							<div className="flex items-center justify-between px-6 py-4">
+								<div className="flex items-center space-x-4">
+									<button 
+										className="lg:hidden text-gray-500 hover:text-gray-700"
+										onClick={() => setSidebarOpen(true)}
+									>
+										<i className="fas fa-bars text-lg"></i>
+									</button>
+									
+									{/* 面包屑导航 */}
+									<nav className="flex items-center space-x-2 text-sm text-gray-500">
+										<span>质量管理平台</span>
+										<i className="fas fa-chevron-right text-xs"></i>
+										<span className="text-gray-800 font-medium">{selectedSystem}</span>
+									</nav>
+								</div>
+
+								<div className="flex items-center space-x-4">
+									{/* 搜索框 */}
+									<div className="relative hidden md:block">
+										<input 
+											type="text" 
+											placeholder="搜索系统、功能..." 
+											className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+										/>
+										<i className="fas fa-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+									</div>
+
+									{/* 通知按钮 */}
+									<button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200">
+										<i className="fas fa-bell text-lg"></i>
+										<span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+									</button>
+
+									{/* 用户菜单 */}
+									<div className="flex items-center space-x-2">
+										<div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+											<span className="text-white text-sm font-semibold">李</span>
+										</div>
+										<span className="text-sm text-gray-700 hidden md:block">李承远</span>
+									</div>
+								</div>
+							</div>
+						</header>
+
+						{/* 欢迎条 - 位于搜索栏下方 */}
+						<WelcomeBar />
+
+						{/* 内容区域 */}
+						<main className="flex-1 overflow-y-auto">
+							<div className="p-6">
+								{renderMainContent()}
+							</div>
+						</main>
+					</div>
+				</div>
+			);
+		};
+
+		// 渲染应用
+		ReactDOM.render(<App />, document.getElementById('root'));
+
+    </script>
+</body>
+</html>
